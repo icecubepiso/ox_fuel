@@ -17,12 +17,23 @@ local function isMoneyEnough(money, price)
 	end
 end
 
-RegisterNetEvent('ox_fuel:pay', function(price, fuel)
+local function setFuelState(netid, fuel)
+	local vehicle = NetworkGetEntityFromNetworkId(netid)
+	local state = vehicle and Entity(vehicle)?.state
+
+	if state then
+		state:set('fuel', fuel, true)
+	end
+end
+
+RegisterNetEvent('ox_fuel:pay', function(price, fuel, netid)
 	assert(type(price) == 'number', ('Price expected a number, received %s'):format(type(price)))
 
 	ox_inventory:RemoveItem(source, 'money', price)
 
 	fuel = math.floor(fuel)
+	setFuelState(netid, fuel)
+
 	TriggerClientEvent('ox_lib:notify', source, {
 		type = 'success',
 		description = locale('fuel_success', fuel, price)
@@ -35,50 +46,54 @@ RegisterNetEvent('ox_fuel:fuelCan', function(hasCan, price)
 	if not isMoneyEnough(money, price) then return false end
 
 	if hasCan then
-		local item = ox_inventory:Search(source, 'slots', 'WEAPON_PETROLCAN')
+		local item = ox_inventory:GetCurrentWeapon(source)
+
 		if item then
-			item = item[1]
 			item.metadata.durability = 100
 			item.metadata.ammo = 100
 
 			ox_inventory:SetMetadata(source, item.slot, item.metadata)
 			ox_inventory:RemoveItem(source, 'money', price)
+
 			TriggerClientEvent('ox_lib:notify', source, {
 				type = 'success',
 				description = locale('petrolcan_refill', price)
 			})
 		end
 	else
-		local petrolCan = exports.ox_inventory:GetItem(source, 'WEAPON_PETROLCAN', false, true)
-
-		if petrolCan == 0 then
-			local canCarry = ox_inventory:CanCarryItem(source, 'WEAPON_PETROLCAN', 1)
-
-			if not canCarry then 
-				return TriggerClientEvent('ox_lib:notify', source, {
-					type = 'error',
-					description = locale('petrolcan_cannot_carry')
-				})
-			end
-
-			ox_inventory:AddItem(source, 'WEAPON_PETROLCAN', 1)
-
-			ox_inventory:RemoveItem(source, 'money', price)
-			TriggerClientEvent('ox_lib:notify', source, {
-				type = 'success',
-				description = locale('petrolcan_buy', price)
+		if not ox_inventory:CanCarryItem(source, 'WEAPON_PETROLCAN', 1) then
+			return TriggerClientEvent('ox_lib:notify', source, {
+				type = 'error',
+				description = locale('petrolcan_cannot_carry')
 			})
-		else
-			-- manually triggered event, cheating?
 		end
+
+		ox_inventory:AddItem(source, 'WEAPON_PETROLCAN', 1)
+		ox_inventory:RemoveItem(source, 'money', price)
+
+		TriggerClientEvent('ox_lib:notify', source, {
+			type = 'success',
+			description = locale('petrolcan_buy', price)
+		})
 	end
 end)
 
-RegisterNetEvent('ox_fuel:UpdateCanDurability', function(fuelingCan, durability)
-	durability = math.floor(durability)
-	fuelingCan.metadata.durability = durability
-	fuelingCan.metadata.ammo = durability
-	exports.ox_inventory:SetMetadata(source, fuelingCan.slot, fuelingCan.metadata)
+RegisterNetEvent('ox_fuel:updateFuelCan', function(durability, netid, fuel)
+	local source = source
+	local item = ox_inventory:GetCurrentWeapon(source)
+
+	if item and durability > 0 then
+		durability = math.floor(item.metadata.durability - durability)
+		item.metadata.durability = durability
+		item.metadata.ammo = durability
+
+		ox_inventory:SetMetadata(source, item.slot, item.metadata)
+		setFuelState(netid, fuel)
+		Wait(0)
+		return TriggerClientEvent('ox_inventory:disarm', source)
+	end
+
+	-- player is sus?
 end)
 
 RegisterNetEvent('ox_fuel:createStatebag', function(netid, fuel)

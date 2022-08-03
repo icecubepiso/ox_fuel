@@ -1,13 +1,13 @@
 --[[ FX Information ]]--
 fx_version   'cerulean'
-use_fxv2_oal 'yes'
+use_experimental_fxv2_oal 'yes'
 lua54        'yes'
 game         'gta5'
 
 --[[ Resource Information ]]--
 name         'ox_fuel'
 author       'Overextended'
-version      '1.0.1'
+version      '1.1.3'
 repository   'https://github.com/overextended/ox_fuel'
 description  'Fuel management system with ox_inventory support'
 
